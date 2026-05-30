@@ -1,45 +1,91 @@
 <!DOCTYPE html>
-<html>
-<head><title>Private Chat</title></head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1-on-1 Direct Chat</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #eef2f3; text-align: center; }
+        .chat-box { max-width: 400px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        input, button { width: 100%; padding: 12px; margin: 8px 0; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; font-size: 16px; }
+        button { background: #25d366; color: white; border: none; font-weight: bold; cursor: pointer; }
+        #log { height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-top: 15px; background: #f9f9f9; text-align: left; }
+    </style>
+</head>
 <body>
-    <h2>Private Chat (No Phone Number)</h2>
+
+<div class="chat-box">
+    <h2>Private Global Chat</h2>
+    
     <input id="username" placeholder="Your Username">
-    <button onclick="joinChat()">Join</button>
-    <br><br>
-    <input id="target" placeholder="Chat with whom?">
-    <input id="msg" placeholder="Message">
-    <button onclick="send()">Send</button>
-    <div id="log" style="margin-top:20px; font-family:monospace;"></div>
+    <button onclick="connectToNetwork()">Connect Now</button>
+    
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+    
+    <input id="target" placeholder="Who do you want to text?">
+    <input id="msg" placeholder="Type message here...">
+    <button onclick="sendDirectMessage()">Send Message</button>
 
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script>
-        // BACKEND URL GOES HERE LATER
-        const SERVER_URL = "https://private-chatting-y9cg.onrender.com"; 
-        const socket = io(SERVER_URL);
-        let myName = "";
+    <div id="log"></div>
+</div>
 
-        function joinChat() {
-            myName = document.getElementById('username').value;
-            socket.emit('join', myName);
-            alert("Joined as " + myName);
-        }
+<script src='https://cdn.scaledrone.com/scaledrone.js'></script>
+<script>
+    // Free Public Testing Key Configuration 
+    const drone = new ScaleDrone('askY7NE7UThU8G67'); 
+    let room, myName = "";
 
-        function send() {
-            const to = document.getElementById('target').value;
-            const message = document.getElementById('msg').value;
-            socket.emit('private_message', { to, message, from: myName });
-            
-            // Show your own sent message locally
-            const div = document.createElement('div');
-            div.innerText = `You -> ${to}: ${message}`;
-            document.getElementById('log').appendChild(div);
-        }
+    drone.on('open', error => {
+        if (error) return console.error(error);
+        console.log('Connected to global routing cloud.');
+    });
 
-        socket.on('receive_message', (data) => {
-            const div = document.createElement('div');
-            div.innerText = `${data.from}: ${data.message}`;
-            document.getElementById('log').appendChild(div);
+    function connectToNetwork() {
+        myName = document.getElementById('username').value.trim().toLowerCase();
+        if (!myName) return alert("Please type your username first!");
+
+        // Connects directly to a global room channel
+        room = drone.subscribe('observable-global-chat');
+
+        room.on('data', (data) => {
+            // Check if the message was specifically targeted to you
+            if (data.to === myName) {
+                printToScreen(data.from, data.message);
+            }
         });
-    </script>
+
+        alert(`Ready! Tell your friend to target the name: "${myName}"`);
+    }
+
+    function sendDirectMessage() {
+        const targetUser = document.getElementById('target').value.trim().toLowerCase();
+        const textPayload = document.getElementById('msg').value.trim();
+
+        if (!targetUser || !textPayload) return alert("Enter who you are sending to and your message!");
+
+        // Publish data straight to the room pool 
+        drone.publish({
+            room: 'observable-global-chat',
+            message: {
+                to: targetUser,
+                from: myName,
+                message: textPayload
+            }
+        });
+
+        // Log your own sent message locally on your screen
+        printToScreen("You", `(To ${targetUser}): ${textPayload}`);
+        document.getElementById('msg').value = ""; // Clear input
+    }
+
+    function printToScreen(sender, text) {
+        const log = document.getElementById('log');
+        const div = document.createElement('div');
+        div.style.padding = "4px 0";
+        div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight; // Auto scroll to bottom
+    }
+</script>
 </body>
 </html>
