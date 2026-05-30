@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head><title>Private Chat</title></head>
+<body>
+    <h2>Private Chat (No Phone Number)</h2>
+    <input id="username" placeholder="Your Username">
+    <button onclick="joinChat()">Join</button>
+    <br><br>
+    <input id="target" placeholder="Chat with whom?">
+    <input id="msg" placeholder="Message">
+    <button onclick="send()">Send</button>
+    <div id="log" style="margin-top:20px; font-family:monospace;"></div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // BACKEND URL GOES HERE LATER
+        const SERVER_URL = "YOUR_RENDER_URL_HERE"; 
+        const socket = io(SERVER_URL);
+        let myName = "";
+
+        function joinChat() {
+            myName = document.getElementById('username').value;
+            socket.emit('join', myName);
+            alert("Joined as " + myName);
+        }
+
+        function send() {
+            const to = document.getElementById('target').value;
+            const message = document.getElementById('msg').value;
+            socket.emit('private_message', { to, message, from: myName });
+            
+            // Show your own sent message locally
+            const div = document.createElement('div');
+            div.innerText = `You -> ${to}: ${message}`;
+            document.getElementById('log').appendChild(div);
+        }
+
+        socket.on('receive_message', (data) => {
+            const div = document.createElement('div');
+            div.innerText = `${data.from}: ${data.message}`;
+            document.getElementById('log').appendChild(div);
+        });
+    </script>
+</body>
+</html>
