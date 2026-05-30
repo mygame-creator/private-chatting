@@ -2,89 +2,94 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1-on-1 Direct Chat</title>
+    <title>Direct Private Chat</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #eef2f3; text-align: center; }
-        .chat-box { max-width: 400px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        input, button { width: 100%; padding: 12px; margin: 8px 0; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; font-size: 16px; }
-        button { background: #25d366; color: white; border: none; font-weight: bold; cursor: pointer; }
-        #log { height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-top: 15px; background: #f9f9f9; text-align: left; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; text-align: center; }
+        .box { max-width: 400px; margin: auto; background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
+        button { background: #007bc4; color: white; border: none; font-weight: bold; cursor: pointer; }
+        #log { height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 5px; margin-top: 10px; text-align: left; background: #fafafa; }
     </style>
 </head>
 <body>
 
-<div class="chat-box">
-    <h2>Private Global Chat</h2>
+<div class="box">
+    <h2>Direct Chat</h2>
     
-    <input id="username" placeholder="Your Username">
-    <button onclick="connectToNetwork()">Connect Now</button>
+    <div id="id-display" style="font-weight: bold; color: green; margin-bottom: 10px;">Connecting to network...</div>
     
-    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+    <input id="target-id" placeholder="Paste Friend's ID Here">
+    <button onclick="connectToFriend()">Connect to Friend</button>
     
-    <input id="target" placeholder="Who do you want to text?">
-    <input id="msg" placeholder="Type message here...">
-    <button onclick="sendDirectMessage()">Send Message</button>
+    <hr>
+    
+    <input id="msg" placeholder="Type message...">
+    <button onclick="sendMessage()">Send</button>
 
     <div id="log"></div>
 </div>
 
-<script src='https://cdn.scaledrone.com/scaledrone.js'></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
 <script>
-    // Free Public Testing Key Configuration 
-    const drone = new ScaleDrone('askY7NE7UThU8G67'); 
-    let room, myName = "";
+    let peer, conn;
 
-    drone.on('open', error => {
-        if (error) return console.error(error);
-        console.log('Connected to global routing cloud.');
-    });
+    // Create a random, simple ID for this device
+    const myId = Math.floor(100000 + Math.random() * 900000).toString();
 
-    function connectToNetwork() {
-        myName = document.getElementById('username').value.trim().toLowerCase();
-        if (!myName) return alert("Please type your username first!");
+    // Initialize the peer connection
+    try {
+        peer = new Peer(myId);
 
-        // Connects directly to a global room channel
-        room = drone.subscribe('observable-global-chat');
-
-        room.on('data', (data) => {
-            // Check if the message was specifically targeted to you
-            if (data.to === myName) {
-                printToScreen(data.from, data.message);
-            }
+        peer.on('open', (id) => {
+            document.getElementById('id-display').innerText = "Your ID is: " + id;
         });
 
-        alert(`Ready! Tell your friend to target the name: "${myName}"`);
+        // Listen for incoming connections from a friend
+        peer.on('connection', (connection) => {
+            conn = connection;
+            setupChatListeners();
+            alert("Friend connected to you!");
+        });
+    } catch (e) {
+        document.getElementById('id-display').innerText = "Connection failed. Browser outdated.";
     }
 
-    function sendDirectMessage() {
-        const targetUser = document.getElementById('target').value.trim().toLowerCase();
-        const textPayload = document.getElementById('msg').value.trim();
+    function connectToFriend() {
+        const target = document.getElementById('target-id').value.trim();
+        if (!target) return alert("Please enter your friend's ID");
+        
+        // Connect to the friend's ID
+        conn = peer.connect(target);
+        setupChatListeners();
+        alert("Connecting to friend...");
+    }
 
-        if (!targetUser || !textPayload) return alert("Enter who you are sending to and your message!");
-
-        // Publish data straight to the room pool 
-        drone.publish({
-            room: 'observable-global-chat',
-            message: {
-                to: targetUser,
-                from: myName,
-                message: textPayload
-            }
+    function setupChatListeners() {
+        conn.on('open', () => {
+            document.getElementById('id-display').innerText = "Connected directly!";
         });
 
-        // Log your own sent message locally on your screen
-        printToScreen("You", `(To ${targetUser}): ${textPayload}`);
-        document.getElementById('msg').value = ""; // Clear input
+        conn.on('data', (data) => {
+            printMessage("Friend", data);
+        });
     }
 
-    function printToScreen(sender, text) {
+    function sendMessage() {
+        const msgInput = document.getElementById('msg');
+        const text = msgInput.value.trim();
+        if (!text || !conn) return alert("Not connected or empty message!");
+
+        conn.send(text);
+        printMessage("You", text);
+        msgInput.value = "";
+    }
+
+    function printMessage(sender, text) {
         const log = document.getElementById('log');
         const div = document.createElement('div');
-        div.style.padding = "4px 0";
         div.innerHTML = `<strong>${sender}:</strong> ${text}`;
         log.appendChild(div);
-        log.scrollTop = log.scrollHeight; // Auto scroll to bottom
+        log.scrollTop = log.scrollHeight;
     }
 </script>
 </body>
