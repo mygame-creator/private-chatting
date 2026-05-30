@@ -2,26 +2,43 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Direct Private Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Login Private Chat</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; text-align: center; }
-        .box { max-width: 400px; margin: auto; background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 15px; background: #f0f0f0; text-align: center; }
+        .box { max-width: 400px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        input, button { width: 100%; padding: 12px; margin: 6px 0; box-sizing: border-box; border-radius: 4px; font-size: 16px; }
         button { background: #007bc4; color: white; border: none; font-weight: bold; cursor: pointer; }
-        #log { height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 5px; margin-top: 10px; text-align: left; background: #fafafa; }
+        .secure-btn { background: #128C7E; }
+        .logout-btn { background: #d9534f; padding: 6px; font-size: 12px; width: auto; margin-top: 5px; }
+        #status { font-weight: bold; color: orange; margin: 10px 0; }
+        #log { height: 250px; overflow-y: auto; border: 1px solid #ccc; padding: 8px; margin-top: 10px; text-align: left; background: #fafafa; border-radius: 4px; }
     </style>
 </head>
 <body>
 
 <div class="box">
-    <h2>Direct Chat</h2>
+    <h2>Secure Chat</h2>
     
-    <div id="id-display" style="font-weight: bold; color: green; margin-bottom: 10px;">Connecting to network...</div>
+    <div id="login-section">
+        <input id="my-custom-id" placeholder="Create Your Chat ID">
+        <input id="chat-password" type="password" placeholder="Set Shared Secret Password">
+        <button onclick="saveAndConnect()">Save Info & Go Online</button>
+    </div>
+
+    <div id="profile-section" style="display:none;">
+        <span id="profile-text" style="font-size: 14px; color: #555;"></span>
+        <button class="logout-btn" onclick="clearIdentity()">Change Account / Logout</button>
+    </div>
     
-    <input id="target-id" placeholder="Paste Friend's ID Here">
-    <button onclick="connectToFriend()">Connect to Friend</button>
+    <div id="status">Status: Offline</div>
     
-    <hr>
+    <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
+    
+    <input id="target-id" placeholder="Enter Friend's Chat ID">
+    <button class="secure-btn" onclick="connectToFriend()">Connect to Friend</button>
+    
+    <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
     
     <input id="msg" placeholder="Type message...">
     <button onclick="sendMessage()">Send</button>
@@ -32,52 +49,96 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
 <script>
     let peer, conn;
+    let savedID = localStorage.getItem('chat_id');
+    let savedPassword = localStorage.getItem('chat_password');
 
-    // Create a random, simple ID for this device
-    const myId = Math.floor(100000 + Math.random() * 900000).toString();
+    // Auto-login configuration on startup
+    window.onload = function() {
+        if (savedID && savedPassword) {
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('profile-section').style.display = 'block';
+            document.getElementById('profile-text').innerText = "Logged in permanently as: " + savedID;
+            startNetwork(savedID, savedPassword);
+        }
+    };
 
-    // Initialize the peer connection
-    try {
-        peer = new Peer(myId);
+    function saveAndConnect() {
+        const idInput = document.getElementById('my-custom-id').value.trim().toLowerCase();
+        const passInput = document.getElementById('chat-password').value.trim();
+
+        if (!idInput || !passInput) return alert("Please fill in both fields!");
+
+        // Save directly to the phone's browser database storage
+        localStorage.setItem('chat_id', idInput);
+        localStorage.setItem('chat_password', passInput);
+        
+        // Reload page to initiate standard auto-login protocol
+        location.reload();
+    }
+
+    function clearIdentity() {
+        localStorage.removeItem('chat_id');
+        localStorage.removeItem('chat_password');
+        location.reload(); // Refresh to show login boxes again
+    }
+
+    function startNetwork(username, securityKey) {
+        peer = new Peer(username);
 
         peer.on('open', (id) => {
-            document.getElementById('id-display').innerText = "Your ID is: " + id;
+            document.getElementById('status').innerText = "Status: Online";
+            document.getElementById('status').style.color = "green";
         });
 
-        // Listen for incoming connections from a friend
         peer.on('connection', (connection) => {
-            conn = connection;
-            setupChatListeners();
-            alert("Friend connected to you!");
+            if (connection.metadata && connection.metadata.password === securityKey) {
+                conn = connection;
+                setupChatListeners();
+            } else {
+                connection.close();
+                alert("Rejected unauthorized connection attempt (Wrong password).");
+            }
         });
-    } catch (e) {
-        document.getElementById('id-display').innerText = "Connection failed. Browser outdated.";
+
+        peer.on('error', (err) => {
+            if (err.type === 'unavailable-id') alert("This ID is already active somewhere else!");
+        });
     }
 
     function connectToFriend() {
-        const target = document.getElementById('target-id').value.trim();
-        if (!target) return alert("Please enter your friend's ID");
+        const target = document.getElementById('target-id').value.trim().toLowerCase();
+        const password = localStorage.getItem('chat_password');
         
-        // Connect to the friend's ID
-        conn = peer.connect(target);
+        if (!target) return alert("Enter your friend's ID!");
+        if (!password) return alert("Setup your own profile setup first!");
+        
+        conn = peer.connect(target, {
+            metadata: { password: password }
+        });
+        
         setupChatListeners();
-        alert("Connecting to friend...");
     }
 
     function setupChatListeners() {
         conn.on('open', () => {
-            document.getElementById('id-display').innerText = "Connected directly!";
+            document.getElementById('status').innerText = "Status: Connected Securely!";
+            document.getElementById('status').style.color = "green";
         });
 
         conn.on('data', (data) => {
             printMessage("Friend", data);
+        });
+        
+        conn.on('close', () => {
+            document.getElementById('status').innerText = "Status: Disconnected";
+            document.getElementById('status').style.color = "red";
         });
     }
 
     function sendMessage() {
         const msgInput = document.getElementById('msg');
         const text = msgInput.value.trim();
-        if (!text || !conn) return alert("Not connected or empty message!");
+        if (!text || !conn) return alert("Not connected or message is empty!");
 
         conn.send(text);
         printMessage("You", text);
